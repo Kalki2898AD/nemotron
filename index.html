@@ -432,21 +432,22 @@
                         body: JSON.stringify({ message })
                     });
 
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.details || errorData.error || 'Failed to get response');
-                    }
-
                     const data = await response.json();
                     hideTypingIndicator();
+
+                    if (!data.success) {
+                        throw new Error(data.details || data.error || 'Unknown error occurred');
+                    }
+
                     addMessage(data.response, false);
                 } catch (error) {
                     hideTypingIndicator();
                     console.error('Error:', error);
+                    
                     let errorMessage = 'An error occurred while processing your request. ';
                     
-                    if (error.message.includes('timeout') || error.message.includes('504')) {
-                        errorMessage += 'The AI model took too long to respond. Please try again with a shorter message.';
+                    if (error.name === 'TypeError' && error.message.includes('JSON')) {
+                        errorMessage = 'Failed to parse the response from the server. Please try again.';
                     } else if (error.message) {
                         errorMessage += error.message;
                     }
