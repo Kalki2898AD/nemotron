@@ -268,27 +268,31 @@
             showTypingIndicator();
 
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify({ message }),
+                    signal: controller.signal
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const contentType = response.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    throw new TypeError("Oops, we haven't got JSON!");
-                }
+                clearTimeout(timeoutId);
 
                 const data = await response.json();
                 hideTypingIndicator();
                 
+                if (!response.ok) {
+                    if (response.status === 504) {
+                        throw new Error('The request took too long to complete. Please try again with a shorter message.');
+                    }
+                    throw new Error(data.error || 'An error occurred');
+                }
+
                 if (data.response) {
                     addMessage(data.response);
                 } else {
@@ -297,7 +301,12 @@
             } catch (error) {
                 console.error('Error:', error);
                 hideTypingIndicator();
-                addMessage(`Error: ${error.message}`);
+                
+                if (error.name === 'AbortError') {
+                    addMessage('The request was cancelled due to taking too long. Please try again with a shorter message.');
+                } else {
+                    addMessage(`Error: ${error.message}`);
+                }
             }
         }
     </script>
