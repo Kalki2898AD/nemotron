@@ -307,7 +307,7 @@
                 <div class="chat-input-wrapper">
                     <span id="char-counter" class="char-counter">0/8000</span>
                     <textarea id="user-input" placeholder="Type your message (up to 8000 characters)..." rows="1" maxlength="8000"></textarea>
-                    <button onclick="sendMessage()">Send</button>
+                    <button id="send-button" onclick="handleMessageSend()">Send</button>
                 </div>
             </div>
         </div>
@@ -375,12 +375,16 @@
             
             function showTypingIndicator() {
                 const indicator = document.querySelector('.typing-indicator');
-                indicator.style.display = 'block';
-                indicator.scrollIntoView({ behavior: 'smooth' });
+                if (indicator) {
+                    indicator.style.display = 'flex';
+                }
             }
             
             function hideTypingIndicator() {
-                document.querySelector('.typing-indicator').style.display = 'none';
+                const indicator = document.querySelector('.typing-indicator');
+                if (indicator) {
+                    indicator.style.display = 'none';
+                }
             }
             
             function detectAndFormatCode(text) {
@@ -422,9 +426,10 @@
             
             async function attemptRequest(userMessage, retryCount) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 25000); // Reduced timeout to 25 seconds
+                const timeoutId = setTimeout(() => controller.abort(), 25000);
 
                 try {
+                    showTypingIndicator(); // Show indicator before request
                     const response = await fetch('https://nemotron-eta.vercel.app/api/chat', {
                         method: 'POST',
                         headers: {
@@ -437,6 +442,7 @@
                     clearTimeout(timeoutId);
 
                     if (!response.ok) {
+                        hideTypingIndicator();
                         if (response.status === 504) {
                             throw new Error('DEPLOYMENT_TIMEOUT');
                         }
@@ -445,12 +451,14 @@
 
                     const data = await response.json();
                     if (!data || !data.response) {
+                        hideTypingIndicator();
                         throw new Error('Invalid response format');
                     }
 
                     return data.response;
                 } catch (error) {
                     clearTimeout(timeoutId);
+                    hideTypingIndicator();
                     if (error.name === 'AbortError') {
                         throw new Error('Request timed out');
                     }
@@ -465,15 +473,18 @@
                 for (let attempt = 1; attempt <= maxRetries; attempt++) {
                     try {
                         if (attempt > 1) {
-                            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay between retries
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            showTypingIndicator(); // Show indicator before retry
                         }
                         
                         const response = await attemptRequest(message, attempt);
+                        hideTypingIndicator();
                         isProcessing = false;
                         return response;
                     } catch (error) {
                         console.log(`Attempt ${attempt} failed:`, error);
                         lastError = error;
+                        hideTypingIndicator();
                         
                         if (attempt === maxRetries) {
                             isProcessing = false;
@@ -493,6 +504,39 @@
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             }
             
+            async function handleMessageSend() {
+                const input = document.getElementById('user-input');
+                const message = input.value.trim();
+                
+                if (!message) return;
+
+                if (isProcessing) {
+                    displayErrorMessage('Please wait for the previous message to complete.');
+                    return;
+                }
+
+                if (message.length > MAX_CHARS) {
+                    displayErrorMessage(`Message is too long. Please keep it under ${MAX_CHARS} characters.`);
+                    return;
+                }
+
+                isProcessing = true;
+                input.value = '';
+                addMessage(message, true);
+
+                try {
+                    const response = await sendMessage(message);
+                    if (response) {
+                        addMessage(response, false);
+                    }
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                } finally {
+                    hideTypingIndicator();
+                    isProcessing = false;
+                }
+            }
+
             const MAX_CHARS = 8000; // Increased from 2000 to 8000 for programming use cases
             const userInput = document.getElementById('user-input');
             const charCounter = document.getElementById('char-counter');
@@ -505,43 +549,11 @@
 
             let isProcessing = false;
 
-            async function sendMessage() {
-                const input = document.getElementById('user-input');
-                const message = input.value.trim();
-                
-                if (!message) return;
-
-                if (isProcessing) {
-                    addMessage('Please wait for the previous message to complete.', false);
-                    return;
-                }
-                
-                if (message.length > MAX_CHARS) {
-                    addMessage(`Message is too long. Please keep it under ${MAX_CHARS} characters.`, false);
-                    return;
-                }
-
-                isProcessing = true;
-
-                // Clear input and add user message
-                input.value = '';
-                addMessage(message, true);
-                showTypingIndicator();
-
-                try {
-                    const response = await sendMessage(message);
-                    hideTypingIndicator();
-                    addMessage(response, false);
-                } catch (error) {
-                    console.error('Error sending message:', error);
-                }
-            }
-            
             // Handle Enter key
             document.getElementById('user-input').addEventListener('keypress', function(e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage();
+                    handleMessageSend();
                 }
             });
             
