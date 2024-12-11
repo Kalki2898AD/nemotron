@@ -1,0 +1,295 @@
+<html lang="en"><script src="chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/content/location/location.js" id="eppiocemhmnlbhjplcgkofciiegomcon"></script><script src="chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/libs/extend-native-history-api.js"></script><script src="chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/libs/requests.js"></script><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            background: rgba(40, 40, 40, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 40px);
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: rgba(50, 50, 50, 0.95);
+            border-radius: 15px 15px 0 0;
+            border-bottom: 2px solid #3a3a3a;
+        }
+
+        .chat-header h2 {
+            margin: 0;
+            color: #fff;
+            font-size: 1.5em;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 18px;
+            border-radius: 15px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background: #4a4a4a;
+            color: #fff;
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+
+        .bot-message {
+            background: #2d2d2d;
+            color: #fff;
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+
+        .chat-input {
+            padding: 20px;
+            background: rgba(50, 50, 50, 0.95);
+            border-radius: 0 0 15px 15px;
+            border-top: 2px solid #3a3a3a;
+            display: flex;
+            gap: 10px;
+        }
+
+        #messageInput {
+            flex-grow: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: #2d2d2d;
+            color: #fff;
+            font-size: 16px;
+        }
+
+        #messageInput:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            background: #5c5c5c;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #6c6c6c;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 12px 18px;
+            background: #2d2d2d;
+            border-radius: 15px;
+            border-bottom-left-radius: 5px;
+            align-self: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #fff;
+            border-radius: 50%;
+            margin-right: 3px;
+            animation: bounce 1.3s linear infinite;
+        }
+
+        .dot:nth-child(2) { animation-delay: 0.15s; }
+        .dot:nth-child(3) { animation-delay: 0.3s; }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-4px); }
+        }
+
+        pre {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+
+        code {
+            font-family: 'Courier New', monospace;
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .chat-container {
+                height: calc(100vh - 20px);
+            }
+
+            .message {
+                max-width: 85%;
+            }
+        }
+    </style>
+<script bis_use="true" type="text/javascript" charset="utf-8" data-bis-config="[&quot;facebook.com/&quot;,&quot;twitter.com/&quot;,&quot;youtube-nocookie.com/embed/&quot;,&quot;//vk.com/&quot;,&quot;//www.vk.com/&quot;,&quot;linkedin.com/&quot;,&quot;//www.linkedin.com/&quot;,&quot;//instagram.com/&quot;,&quot;//www.instagram.com/&quot;,&quot;//www.google.com/recaptcha/api2/&quot;,&quot;//hangouts.google.com/webchat/&quot;,&quot;//www.google.com/calendar/&quot;,&quot;//www.google.com/maps/embed&quot;,&quot;spotify.com/&quot;,&quot;soundcloud.com/&quot;,&quot;//player.vimeo.com/&quot;,&quot;//disqus.com/&quot;,&quot;//tgwidget.com/&quot;,&quot;//js.driftt.com/&quot;,&quot;friends2follow.com&quot;,&quot;/widget&quot;,&quot;login&quot;,&quot;//video.bigmir.net/&quot;,&quot;blogger.com&quot;,&quot;//smartlock.google.com/&quot;,&quot;//keep.google.com/&quot;,&quot;/web.tolstoycomments.com/&quot;,&quot;moz-extension://&quot;,&quot;chrome-extension://&quot;,&quot;/auth/&quot;,&quot;//analytics.google.com/&quot;,&quot;adclarity.com&quot;,&quot;paddle.com/checkout&quot;,&quot;hcaptcha.com&quot;,&quot;recaptcha.net&quot;,&quot;2captcha.com&quot;,&quot;accounts.google.com&quot;,&quot;www.google.com/shopping/customerreviews&quot;,&quot;buy.tinypass.com&quot;,&quot;gstatic.com&quot;,&quot;secureir.ebaystatic.com&quot;,&quot;docs.google.com&quot;,&quot;contacts.google.com&quot;,&quot;github.com&quot;,&quot;mail.google.com&quot;,&quot;chat.google.com&quot;,&quot;audio.xpleer.com&quot;,&quot;keepa.com&quot;,&quot;static.xx.fbcdn.net&quot;,&quot;sas.selleramp.com&quot;,&quot;1plus1.video&quot;,&quot;console.googletagservices.com&quot;,&quot;//lnkd.demdex.net/&quot;,&quot;//radar.cedexis.com/&quot;,&quot;//li.protechts.net/&quot;,&quot;challenges.cloudflare.com/&quot;,&quot;ogs.google.com&quot;]" src="chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/../executers/vi-tr.js"></script></head>
+<body bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWllZ29tY29uIiwiYWRibG9ja2VyU3RhdHVzIjp7IkRJU1BMQVkiOiJkaXNhYmxlZCIsIkZBQ0VCT09LIjoiZGlzYWJsZWQiLCJUV0lUVEVSIjoiZGlzYWJsZWQiLCJSRURESVQiOiJkaXNhYmxlZCIsIlBJTlRFUkVTVCI6ImRpc2FibGVkIiwiSU5TVEFHUkFNIjoiZGlzYWJsZWQiLCJMSU5LRURJTiI6ImRpc2FibGVkIiwiQ09ORklHIjoiZGlzYWJsZWQifSwidmVyc2lvbiI6IjIuMC4xNyIsInNjb3JlIjoyMDAxN31d" __processed_05bee3bd-2146-4eaa-9dfc-1b3892a94689__="true" data-new-gr-c-s-check-loaded="14.1211.0" data-gr-ext-installed="">
+    <div class="chat-container" bis_skin_checked="1">
+        <div class="chat-header" bis_skin_checked="1">
+            <h2>AI Chat</h2>
+        </div>
+        <div class="chat-messages" id="chatMessages" bis_skin_checked="1">
+            <div class="typing-indicator" id="typingIndicator" bis_skin_checked="1">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            </div>
+        </div>
+        <div class="chat-input" bis_skin_checked="1">
+            <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const messageInput = document.getElementById('messageInput');
+        const chatMessages = document.getElementById('chatMessages');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        function showTypingIndicator() {
+            typingIndicator.style.display = 'block';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            typingIndicator.style.display = 'none';
+        }
+
+        function detectAndFormatCode(text) {
+            const parts = [];
+            let currentText = '';
+            let inCodeBlock = false;
+            
+            const lines = text.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                if (line.trim().startsWith('```')) {
+                    if (currentText) {
+                        const textNode = document.createTextNode(currentText);
+                        parts.push(textNode);
+                        currentText = '';
+                    }
+                    
+                    inCodeBlock = !inCodeBlock;
+                    if (inCodeBlock) {
+                        const pre = document.createElement('pre');
+                        const code = document.createElement('code');
+                        let codeContent = '';
+                        i++;
+                        while (i < lines.length && !lines[i].trim().startsWith('```')) {
+                            codeContent += lines[i] + '\n';
+                            i++;
+                        }
+                        code.textContent = codeContent.trim();
+                        pre.appendChild(code);
+                        parts.push(pre);
+                    }
+                } else {
+                    if (inCodeBlock) {
+                        currentText += line + '\n';
+                    } else {
+                        currentText += (currentText ? '\n' : '') + line;
+                    }
+                }
+            }
+            
+            if (currentText) {
+                const textNode = document.createTextNode(currentText);
+                parts.push(textNode);
+            }
+            
+            return parts;
+        }
+
+        function addMessage(content, isUser = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            
+            if (isUser) {
+                messageDiv.textContent = content;
+            } else {
+                const parts = detectAndFormatCode(content);
+                parts.forEach(part => messageDiv.appendChild(part));
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const userInput = document.getElementById('messageInput');
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            addMessage(message, true);
+            userInput.value = '';
+            showTypingIndicator();
+
+            try {
+                const response = await fetch('https://vercel-api-url.com/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message }),
+                });
+
+                const data = await response.json();
+                hideTypingIndicator();
+                
+                if (response.ok) {
+                    addMessage(data.response);
+                } else {
+                    addMessage('Sorry, I encountered an error. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                hideTypingIndicator();
+                addMessage('Sorry, I encountered an error. Please try again.');
+            }
+        }
+    </script>
+
+</body><grammarly-desktop-integration data-grammarly-shadow-root="true"></grammarly-desktop-integration></html>
