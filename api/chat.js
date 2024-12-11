@@ -3,8 +3,8 @@ import { OpenAI } from 'openai';
 const openai = new OpenAI({
   apiKey: process.env.NVIDIA_API_KEY,
   baseURL: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
-  timeout: 60000, // 60 second timeout
-  maxRetries: 3
+  timeout: 20000, // 20 second timeout
+  maxRetries: 2
 });
 
 export default async function handler(req, res) {
@@ -36,81 +36,50 @@ export default async function handler(req, res) {
       });
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    // Set up timeout
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout')), 15000);
+    });
 
     try {
-      const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`
-        },
-        body: JSON.stringify({
+      // Race between the API call and timeout
+      const completion = await Promise.race([
+        openai.chat.completions.create({
           model: "nvidia/llama-3.1-nemotron-70b-instruct",
           messages: [{ "role": "user", "content": message }],
+          max_tokens: 1000,
           temperature: 0.7,
-          top_p: 1,
-          max_tokens: 4096,
-          stream: false
         }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      const responseText = await response.text();
-      let responseData;
-      
-      try {
-        responseData = JSON.parse(responseText);
-      } catch (e) {
-        console.error('Failed to parse NVIDIA API response:', responseText);
-        return res.status(500).json({
-          success: false,
-          error: 'Invalid response from AI model',
-          details: 'The AI model returned an invalid response format'
-        });
-      }
-
-      if (!response.ok) {
-        return res.status(response.status).json({
-          success: false,
-          error: 'Error from AI model',
-          details: responseData.error || 'Unknown error occurred'
-        });
-      }
-
-      if (!responseData.choices || !responseData.choices[0]?.message?.content) {
-        return res.status(500).json({
-          success: false,
-          error: 'Invalid response format',
-          details: 'The AI model response was missing required fields'
-        });
-      }
+        timeoutPromise
+      ]);
 
       return res.status(200).json({
         success: true,
-        response: responseData.choices[0].message.content
+        response: completion.choices[0].message.content
       });
-
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
+    } catch (error) {
+      if (error.message === 'Request timeout') {
         return res.status(504).json({
           success: false,
-          error: 'Request timeout',
-          details: 'The AI model took too long to respond. Please try again with a shorter message.'
+          error: 'Request timed out. Please try again with a shorter message.'
         });
       }
-      throw fetchError;
+      throw error;
     }
   } catch (error) {
-    console.error('Error details:', error);
+    console.error('API Error:', error);
+    
+    // Handle specific error types
+    if (error.code === 'ECONNABORTED') {
+      return res.status(504).json({
+        success: false,
+        error: 'Connection timeout. The server is busy.'
+      });
+    }
+
     return res.status(500).json({
       success: false,
-      error: 'Server error',
-      details: error.message || 'An unexpected error occurred'
+      error: error.message || 'Internal server error'
     });
   }
 }
