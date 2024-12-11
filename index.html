@@ -272,22 +272,32 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ message }),
+                    body: JSON.stringify({ message })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const contentType = response.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    throw new TypeError("Oops, we haven't got JSON!");
+                }
 
                 const data = await response.json();
                 hideTypingIndicator();
                 
-                if (response.ok) {
+                if (data.response) {
                     addMessage(data.response);
                 } else {
-                    addMessage('Sorry, I encountered an error. Please try again.');
+                    addMessage('Received an invalid response from the server.');
                 }
             } catch (error) {
                 console.error('Error:', error);
                 hideTypingIndicator();
-                addMessage('Sorry, I encountered an error. Please try again.');
+                addMessage(`Error: ${error.message}`);
             }
         }
     </script>
