@@ -426,69 +426,88 @@
             
             async function attemptRequest(userMessage, retryCount) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 25000);
+                const timeoutId = setTimeout(() => controller.abort(), 20000); // Reduced timeout to 20 seconds
 
                 try {
-                    showTypingIndicator(); // Show indicator before request
+                    showTypingIndicator();
                     const response = await fetch('https://nemotron-eta.vercel.app/api/chat', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ message: userMessage }),
-                        signal: controller.signal
+                        body: JSON.stringify({ 
+                            message: userMessage,
+                            timeout: 15000 // Adding explicit timeout for backend
+                        }),
+                        signal: controller.signal,
+                        // Adding cache control headers
+                        cache: 'no-cache',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache'
+                        }
                     });
 
                     clearTimeout(timeoutId);
 
                     if (!response.ok) {
-                        hideTypingIndicator();
                         if (response.status === 504) {
                             throw new Error('DEPLOYMENT_TIMEOUT');
                         }
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        const errorText = await response.text();
+                        throw new Error(`Server error: ${response.status} - ${errorText}`);
                     }
 
-                    const data = await response.json();
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch (e) {
+                        throw new Error('Invalid JSON response from server');
+                    }
+
                     if (!data || !data.response) {
-                        hideTypingIndicator();
                         throw new Error('Invalid response format');
                     }
 
                     return data.response;
                 } catch (error) {
                     clearTimeout(timeoutId);
-                    hideTypingIndicator();
                     if (error.name === 'AbortError') {
-                        throw new Error('Request timed out');
+                        throw new Error('Request timed out - please try again with a shorter message');
                     }
                     throw error;
+                } finally {
+                    hideTypingIndicator();
                 }
             }
 
             async function sendMessage(message) {
-                const maxRetries = 3;
-                let lastError = null;
+                const maxRetries = 2; // Reduced retries
+                const retryDelays = [2000, 4000]; // Progressive delays
                 
                 for (let attempt = 1; attempt <= maxRetries; attempt++) {
                     try {
                         if (attempt > 1) {
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                            showTypingIndicator(); // Show indicator before retry
+                            const delay = retryDelays[attempt - 2];
+                            displayErrorMessage(`Retrying in ${delay/1000} seconds... (Attempt ${attempt}/${maxRetries})`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            showTypingIndicator();
                         }
                         
                         const response = await attemptRequest(message, attempt);
-                        hideTypingIndicator();
                         isProcessing = false;
                         return response;
                     } catch (error) {
                         console.log(`Attempt ${attempt} failed:`, error);
-                        lastError = error;
-                        hideTypingIndicator();
                         
-                        if (attempt === maxRetries) {
+                        if (attempt === maxRetries || error.message.includes('Invalid')) {
                             isProcessing = false;
-                            displayErrorMessage(`Request failed after ${maxRetries} attempts. Please try again later.`);
+                            if (error.message.includes('DEPLOYMENT_TIMEOUT')) {
+                                displayErrorMessage('The server is currently busy. Please try again in a few moments with a shorter message.');
+                            } else {
+                                displayErrorMessage(error.message);
+                            }
                             throw error;
                         }
                     }
@@ -502,6 +521,13 @@
                 errorDiv.textContent = message;
                 chatMessages.appendChild(errorDiv);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                // Auto-remove error message after 5 seconds
+                setTimeout(() => {
+                    if (errorDiv && errorDiv.parentNode) {
+                        errorDiv.remove();
+                    }
+                }, 5000);
             }
             
             async function handleMessageSend() {
