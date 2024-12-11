@@ -31,36 +31,43 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // Set server timeout to 2 minutes
-    res.setTimeout(120000, () => {
-      res.status(504).json({ error: 'Request timeout' });
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "nvidia/llama-3.1-nemotron-70b-instruct",
+        messages: [{ "role": "user", "content": message }],
+        temperature: 0.7,
+        top_p: 1,
+        max_tokens: 512,
+        stream: false
+      })
     });
 
-    const completion = await openai.chat.completions.create({
-      model: "nvidia/llama-3.1-nemotron-70b-instruct",
-      messages: [{ "role": "user", "content": message }],
-      temperature: 0.7,
-      top_p: 1,
-      max_tokens: 512, // Reduced for faster response
-      stream: false
-    });
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('NVIDIA API Error:', errorData);
+      throw new Error(`NVIDIA API error: ${response.status}`);
+    }
 
-    if (!completion.choices || !completion.choices[0]?.message?.content) {
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0]?.message?.content) {
       throw new Error('Invalid response from AI model');
     }
 
-    res.status(200).json({ response: completion.choices[0].message.content });
+    res.status(200).json({ response: data.choices[0].message.content });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error details:', error);
     
-    // Check if it's a timeout error
-    if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKETTIMEDOUT') {
-      return res.status(504).json({ error: 'Request timed out while waiting for the AI model' });
-    }
-    
-    // Check if it's an API key error
-    if (error.status === 401) {
-      return res.status(401).json({ error: 'Invalid API key' });
+    if (error.message.includes('NVIDIA API error')) {
+      return res.status(500).json({ 
+        error: 'Error communicating with AI model',
+        details: error.message
+      });
     }
 
     res.status(500).json({ 
