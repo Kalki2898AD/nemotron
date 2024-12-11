@@ -383,115 +383,32 @@
                 document.querySelector('.typing-indicator').style.display = 'none';
             }
             
-            function createCodeBlock(code, language) {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'code-block';
-                
-                const header = document.createElement('div');
-                header.className = 'code-header';
-                
-                const langSpan = document.createElement('span');
-                langSpan.textContent = language || 'plaintext';
-                
-                const copyButton = document.createElement('button');
-                copyButton.className = 'copy-button';
-                copyButton.textContent = 'Copy';
-                copyButton.onclick = () => {
-                    navigator.clipboard.writeText(code);
-                    copyButton.textContent = 'Copied!';
-                    setTimeout(() => {
-                        copyButton.textContent = 'Copy';
-                    }, 2000);
-                };
-                
-                header.appendChild(langSpan);
-                header.appendChild(copyButton);
-                
-                const pre = document.createElement('pre');
-                const codeElement = document.createElement('code');
-                if (language) {
-                    codeElement.className = `language-${language}`;
-                }
-                codeElement.textContent = code;
-                
-                pre.appendChild(codeElement);
-                wrapper.appendChild(header);
-                wrapper.appendChild(pre);
-                
-                return wrapper;
-            }
-            
             function detectAndFormatCode(text) {
-                const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-                const fragments = [];
-                let lastIndex = 0;
-                let match;
-            
-                while ((match = codeBlockRegex.exec(text)) !== null) {
-                    // Add text before code block
-                    if (match.index > lastIndex) {
-                        fragments.push(document.createTextNode(text.substring(lastIndex, match.index)));
-                    }
-            
-                    // Add code block
-                    const language = match[1] || 'plaintext';
-                    const code = match[2].trim();
-                    fragments.push(createCodeBlock(code, language));
-            
-                    lastIndex = match.index + match[0].length;
-                }
-            
-                // Add remaining text
-                if (lastIndex < text.length) {
-                    fragments.push(document.createTextNode(text.substring(lastIndex)));
-                }
-            
-                return fragments;
-            }
-            
-            function formatNumberedList(text) {
-                const listRegex = /^\d+\.\s/gm;
-                if (listRegex.test(text)) {
-                    const items = text.split('\n').filter(item => item.trim());
-                    const ul = document.createElement('ul');
-                    ul.className = 'numbered-list';
-                    
-                    items.forEach(item => {
-                        const li = document.createElement('li');
-                        li.textContent = item.replace(/^\d+\.\s/, '');
-                        ul.appendChild(li);
-                    });
-                    
-                    return [ul];
-                }
-                return [document.createTextNode(text)];
+                if (!text) return ''; // Return empty string if text is null or undefined
+                
+                const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
+                return text.replace(codeBlockRegex, (match, language, code) => {
+                    if (!code) return match; // Return original if no code content
+                    const formattedCode = hljs.highlightAuto(code.trim()).value;
+                    return `<pre><code class="hljs ${language}">${formattedCode}</code></pre>`;
+                });
             }
             
             function addMessage(content, isUser = false, save = true) {
+                if (!content) return; // Don't add empty messages
+                
+                const chatMessages = document.getElementById('chat-messages');
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
-            
-                if (isUser) {
-                    messageDiv.textContent = content;
-                } else {
-                    const fragments = detectAndFormatCode(content);
-                    fragments.forEach(fragment => {
-                        if (fragment instanceof Element) {
-                            messageDiv.appendChild(fragment);
-                            if (fragment.querySelector('code')) {
-                                hljs.highlightElement(fragment.querySelector('code'));
-                            }
-                        } else {
-                            const textFragments = formatNumberedList(fragment.textContent);
-                            textFragments.forEach(tf => messageDiv.appendChild(tf));
-                        }
-                    });
-                }
-            
-                const chatMessages = document.getElementById('chat-messages');
-                chatMessages.insertBefore(messageDiv, document.querySelector('.typing-indicator'));
-                messageDiv.scrollIntoView({ behavior: 'smooth' });
-            
+                
+                // Format the content
+                const formattedContent = isUser ? content : detectAndFormatCode(content);
+                messageDiv.innerHTML = formattedContent;
+                
+                chatMessages.appendChild(messageDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                // Save to chat history
                 if (save) {
                     saveMessage(content, isUser);
                 }
