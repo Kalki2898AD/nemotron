@@ -9,12 +9,23 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
     <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+        }
+
+        [data-theme="light"] {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+        }
+
         body {
             margin: 0;
             padding: 20px;
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
-            color: #fff;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -36,11 +47,12 @@
             background: rgba(50, 50, 50, 0.95);
             border-radius: 15px 15px 0 0;
             border-bottom: 2px solid #3a3a3a;
+            position: relative;
         }
         
         .chat-header h2 {
             margin: 0;
-            color: #fff;
+            color: var(--text-color);
             font-size: 1.5em;
         }
         
@@ -92,7 +104,7 @@
             border: none;
             border-radius: 10px;
             background: rgba(60, 60, 60, 0.95);
-            color: #fff;
+            color: var(--text-color);
             font-size: 1em;
             min-height: 60px;
             max-height: 300px;
@@ -110,7 +122,7 @@
             border: none;
             border-radius: 10px;
             background: #2b5c85;
-            color: #fff;
+            color: var(--text-color);
             font-size: 1em;
             cursor: pointer;
             transition: background-color 0.3s;
@@ -133,7 +145,7 @@
             display: inline-block;
             width: 8px;
             height: 8px;
-            background: #fff;
+            background: var(--text-color);
             border-radius: 50%;
             margin-right: 4px;
             animation: bounce 1.4s infinite;
@@ -169,7 +181,7 @@
             border: none;
             padding: 4px 8px;
             border-radius: 4px;
-            color: #fff;
+            color: var(--text-color);
             cursor: pointer;
             font-size: 0.8em;
         }
@@ -218,11 +230,63 @@
         .char-counter.warning {
             color: #ff4444;
         }
+
+        .menu-button {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px;
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+
+        .menu-dropdown {
+            position: absolute;
+            right: 20px;
+            top: 60px;
+            background: rgba(40, 40, 40, 0.95);
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            display: none;
+            z-index: 1000;
+        }
+
+        [data-theme="light"] .menu-dropdown {
+            background: rgba(245, 245, 245, 0.95);
+            border: 1px solid #ddd;
+        }
+
+        .menu-dropdown.show {
+            display: block;
+        }
+
+        .menu-item {
+            padding: 10px 20px;
+            color: var(--text-color);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .menu-item:hover {
+            background: rgba(60, 60, 60, 0.95);
+        }
+
+        [data-theme="light"] .menu-item:hover {
+            background: rgba(230, 230, 230, 0.95);
+        }
     </style>
     <body>
         <div class="chat-container">
             <div class="chat-header">
                 <h2>AI Chat</h2>
+                <button class="menu-button" onclick="toggleMenu()">⋮</button>
+                <div class="menu-dropdown">
+                    <div class="menu-item" onclick="clearChat()">Clear Chat</div>
+                    <div class="menu-item" onclick="toggleTheme()">Switch Theme</div>
+                </div>
             </div>
             <div class="chat-messages" id="chat-messages">
                 <div class="typing-indicator">
@@ -241,8 +305,42 @@
         </div>
     
         <script>
+            function toggleMenu() {
+                document.querySelector('.menu-dropdown').classList.toggle('show');
+            }
+
+            // Close menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.matches('.menu-button')) {
+                    const dropdown = document.querySelector('.menu-dropdown');
+                    if (dropdown.classList.contains('show')) {
+                        dropdown.classList.remove('show');
+                    }
+                }
+            });
+
+            function clearChat() {
+                const typingIndicator = document.querySelector('.typing-indicator').outerHTML;
+                document.getElementById('chat-messages').innerHTML = typingIndicator;
+                localStorage.removeItem('chatHistory');
+                savedMessages = [];
+                toggleMenu();
+            }
+
+            function toggleTheme() {
+                const body = document.body;
+                const currentTheme = body.getAttribute('data-theme') || 'dark';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                body.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                toggleMenu();
+            }
+
             // Load chat history from localStorage
             document.addEventListener('DOMContentLoaded', () => {
+                const savedTheme = localStorage.getItem('theme') || 'dark';
+                document.body.setAttribute('data-theme', savedTheme);
+
                 try {
                     const savedMessages = localStorage.getItem('chatHistory');
                     if (savedMessages) {
@@ -432,24 +530,41 @@
                         body: JSON.stringify({ message })
                     });
 
-                    const data = await response.json();
+                    // First, get the raw text
+                    const responseText = await response.text();
+                    
+                    // Try to parse it as JSON
+                    let data;
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch (e) {
+                        console.error('Raw response:', responseText);
+                        throw new Error('Failed to parse server response');
+                    }
+
                     hideTypingIndicator();
 
-                    if (!data.success) {
-                        throw new Error(data.details || data.error || 'Unknown error occurred');
+                    if (!response.ok) {
+                        if (response.status === 504) {
+                            throw new Error('Request timed out. Please try again.');
+                        }
+                        throw new Error(data.error || 'Server error');
+                    }
+
+                    if (!data.response) {
+                        throw new Error('Invalid response from server');
                     }
 
                     addMessage(data.response, false);
                 } catch (error) {
                     hideTypingIndicator();
                     console.error('Error:', error);
+                    let errorMessage = error.message;
                     
-                    let errorMessage = 'An error occurred while processing your request. ';
-                    
-                    if (error.name === 'TypeError' && error.message.includes('JSON')) {
-                        errorMessage = 'Failed to parse the response from the server. Please try again.';
-                    } else if (error.message) {
-                        errorMessage += error.message;
+                    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                        errorMessage = 'Could not connect to the server. Please check your internet connection.';
+                    } else if (error.message.includes('timeout') || error.status === 504) {
+                        errorMessage = 'The request timed out. Please try again with a shorter message.';
                     }
                     
                     addMessage('🚫 ' + errorMessage, false);
