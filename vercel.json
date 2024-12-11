@@ -1,7 +1,13 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/chat.js", "use": "@vercel/node" },
+    { 
+      "src": "api/chat.js",
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 60
+      }
+    },
     { "src": "*.html", "use": "@vercel/static" }
   ],
   "routes": [
